@@ -118,6 +118,11 @@ for i in range(3000000):
         print(error(forwardNN(E[1], Layers), Y[1])[0, 0])
         print(error(forwardNN(E[2], Layers), Y[2])[0, 0])
         print(error(forwardNN(E[3], Layers), Y[3])[0, 0])
+        print(forwardNN(E[0], Layers))
+        print(forwardNN(E[1], Layers))
+        print(forwardNN(E[2], Layers))
+        print(forwardNN(E[3], Layers))
+
 
 #
 #    E = [E1,E2,E3,E4]

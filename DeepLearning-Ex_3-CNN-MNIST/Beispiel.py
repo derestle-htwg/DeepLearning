@@ -149,36 +149,49 @@ sgd_functions = build_model('sgd')
 rmsprop_functions = build_model('rmsprop')
 adam_functions = build_model('adam')
 
-print ("Training with SGD")
-sgd_cost_history = train(sgd_functions[0])
-print ("Training with RMSPROP")
-rmsprop_cost_history = train(rmsprop_functions[0])
-print ("Training with ADAM")
-adam_cost_history = train(adam_functions[0])
-
 import matplotlib.pyplot as plt
 
 
-plt.figure(figsize=(7,5))
-x = range(1,11)
-plt.plot(x, sgd_cost_history, 'b-^')
-plt.plot(x, rmsprop_cost_history, 'g-*')
-plt.plot(x, adam_cost_history, 'r-d')
 
-plt.xlabel('Epoch')
-plt.ylabel('Training loss')
-plt.legend(['SGD','RMSProp','ADAM'])
-plt.savefig('training_loss.png')
 
-def get_error(val_fn):
-    loss, acc = val_fn(x_test, y_test)
-    test_error = 1 - acc
-    return test_error
 
-print "Model trained with SGD. Test error: %f" % get_error(sgd_functions[1])
-print "Model trained with RMSProp. Test error: %f" % get_error(rmsprop_functions[1])
-print "Model trained with ADAM. Test error: %f" % get_error(adam_functions[1])
+print ("Training with SGD")
+#sgd_cost_history = train(sgd_functions[0])
+print ("Training with RMSPROP")
+#rmsprop_cost_history = train(rmsprop_functions[0])
+print ("Training with ADAM")
+adam_cost_history = train(adam_functions[0])
+
+
+
+
+#plt.figure(figsize=(7,5))
+#x = range(1,11)
+#plt.plot(x, sgd_cost_history, 'b-^')
+#plt.plot(x, rmsprop_cost_history, 'g-*')
+#plt.plot(x, adam_cost_history, 'r-d')
+
+#plt.xlabel('Epoch')
+#plt.ylabel('Training loss')
+#plt.legend(['SGD','RMSProp','ADAM'])
+#plt.savefig('training_loss.png')
+
+#def get_error(val_fn):
+ #   loss, acc = val_fn(x_test, y_test)
+  #  test_error = 1 - acc
+   # return test_error
+
+#print "Model trained with SGD. Test error: %f" % get_error(sgd_functions[1])
+#print "Model trained with RMSProp. Test error: %f" % get_error(rmsprop_functions[1])
+#print "Model trained with ADAM. Test error: %f" % get_error(adam_functions[1])
 
 plt.show()
 
-
+for i in range(50000):
+    res = adam_functions[2]([x_test[i]])
+    plt.figure(1)
+    plt.subplot(211)
+    plt.imshow(x_test[i][0])
+    plt.subplot(212)
+    plt.plot([0,1,2,3,4,5,6,7,8,9],res[0], "ro")
+    plt.show()
