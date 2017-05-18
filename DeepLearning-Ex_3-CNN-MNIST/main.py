@@ -78,7 +78,9 @@ dataset_file = 'mnist.pkl.gz'
 
 #Download dataset if not yet done:
 if not os.path.isfile(dataset_file):
+    print("Lade Datei")
     urllib.urlretrieve('http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz', dataset_file)
+    print("Datei heruntergeladen")
 
 #Load the dataset
 f = gzip.open(dataset_file, 'rb')

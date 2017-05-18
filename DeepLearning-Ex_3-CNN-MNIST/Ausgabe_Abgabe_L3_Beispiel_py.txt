@@ -1,0 +1,37 @@
+C:\Anaconda2\python.exe C:/Users/derestle/PycharmProjects/DeepLearning/DeepLearning-Ex_3-CNN-MNIST/Beispiel.py
+Training with SGD
+Epoch 1/10, train error: 0.091301. Elapsed time: 11.22 seconds
+Epoch 2/10, train error: 0.090290. Elapsed time: 11.12 seconds
+Epoch 3/10, train error: 0.088191. Elapsed time: 11.11 seconds
+Epoch 4/10, train error: 0.081702. Elapsed time: 11.14 seconds
+Epoch 5/10, train error: 0.068789. Elapsed time: 11.05 seconds
+Epoch 6/10, train error: 0.055237. Elapsed time: 11.41 seconds
+Epoch 7/10, train error: 0.045579. Elapsed time: 11.30 seconds
+Epoch 8/10, train error: 0.038766. Elapsed time: 11.36 seconds
+Epoch 9/10, train error: 0.033798. Elapsed time: 11.19 seconds
+Epoch 10/10, train error: 0.030509. Elapsed time: 11.10 seconds
+Training with RMSPROP
+Epoch 1/10, train error: 0.019339. Elapsed time: 11.20 seconds
+Epoch 2/10, train error: 0.009145. Elapsed time: 11.16 seconds
+Epoch 3/10, train error: 0.007805. Elapsed time: 11.08 seconds
+Epoch 4/10, train error: 0.007262. Elapsed time: 11.04 seconds
+Epoch 5/10, train error: 0.007035. Elapsed time: 11.00 seconds
+Epoch 6/10, train error: 0.006670. Elapsed time: 11.03 seconds
+Epoch 7/10, train error: 0.006459. Elapsed time: 11.02 seconds
+Epoch 8/10, train error: 0.006381. Elapsed time: 11.07 seconds
+Epoch 9/10, train error: 0.006158. Elapsed time: 11.15 seconds
+Epoch 10/10, train error: 0.006039. Elapsed time: 11.02 seconds
+Training with ADAM
+Epoch 1/10, train error: 0.028301. Elapsed time: 11.11 seconds
+Epoch 2/10, train error: 0.011666. Elapsed time: 11.09 seconds
+Epoch 3/10, train error: 0.009003. Elapsed time: 11.12 seconds
+Epoch 4/10, train error: 0.007887. Elapsed time: 11.13 seconds
+Epoch 5/10, train error: 0.007205. Elapsed time: 11.19 seconds
+Epoch 6/10, train error: 0.006604. Elapsed time: 11.26 seconds
+Epoch 7/10, train error: 0.006271. Elapsed time: 11.31 seconds
+Epoch 8/10, train error: 0.005953. Elapsed time: 11.27 seconds
+Epoch 9/10, train error: 0.005799. Elapsed time: 11.32 seconds
+Epoch 10/10, train error: 0.005511. Elapsed time: 11.23 seconds
+Model trained with SGD. Test error: 0.092600
+Model trained with RMSProp. Test error: 0.017700
+Model trained with ADAM. Test error: 0.014900
