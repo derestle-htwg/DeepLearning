@@ -6,6 +6,7 @@ from sklearn import cross_validation
 import lasagne
 import pandas as pd
 from neupy.datasets import make_reber_classification
+import matplotlib.pyplot as plt
 import csv
 
 #b = open('reber_classification_examples.csv', 'w')
@@ -19,8 +20,9 @@ import csv
 #b.close()
 
 print("Generating Reber Grammar Words classification dataset")
-Words, labels = make_reber_classification(5000, invalid_size=0.5)
-X_test = make_reber_classification(400, invalid_size=0.5)
+wordSize = 7
+Words, labels = make_reber_classification(3000, invalid_size=0.5, wordSize=wordSize)
+X_test = make_reber_classification(500, invalid_size=0.5, wordSize=wordSize)
 
 def getAlphabetWithAllWords(arr):
 
@@ -123,64 +125,95 @@ def Split_Data(X_set, y_set, val_size):
     # Return tratin and validation datasets
     return X_train, X_val, y_train, y_val, mask_train, mask_val
 
-
+# Create Batch with specific Size
 def batch_gen(X, y, Mask, N):
     while True:
+        # Choose a example at random
         idx = np.random.choice(len(y), N)
+        # Create the three stuctures (Input (x), label (y), )
         yield X[idx].astype('float32'), y[idx].astype('float32'), Mask[idx].astype('float32')
 
 
 def LSTM(MAX_LENGTH, N_HIDDEN1):
+    # Start building a LSTM Network
+
+    # First a inputLayser with Shape X,X,1 Last is for true or false.
     l_in = lasagne.layers.InputLayer(shape=(None, None, 1))
 
+    # Input-Layer Max_length = size of first dimension of mask-train-set
     l_mask = lasagne.layers.InputLayer(shape=(None, MAX_LENGTH))
+
+    # Initialize recurrent layers (gate and cell parameter)
     gate_parameters = lasagne.layers.recurrent.Gate(W_in=lasagne.init.Orthogonal(), W_hid=lasagne.init.Orthogonal(), b=lasagne.init.Constant(0.))
-    cell_parameters = lasagne.layers.recurrent.Gate(W_in=lasagne.init.Orthogonal(), W_hid=lasagne.init.Orthogonal(), W_cell=None, b=lasagne.init.Constant(0.), nonlinearity=lasagne.nonlinearities.tanh)
+    cell_parameters = lasagne.layers.recurrent.Gate(W_in=lasagne.init.Orthogonal(), W_hid=lasagne.init.Orthogonal(), W_cell=None, b=lasagne.init.Constant(0.), nonlinearity=lasagne.nonlinearities.sigmoid)
 
-    # First LSTM Lasagne Layer
+    # First LSTM lasagne layer
+    # forward
     l_lstm1 = lasagne.layers.recurrent.LSTMLayer(l_in, N_HIDDEN1, mask_input=l_mask, ingate=gate_parameters, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100.)
+    # backward
     l_lstm1_back = lasagne.layers.recurrent.LSTMLayer(l_in, N_HIDDEN1, ingate=gate_parameters, mask_input=l_mask, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100., backwards=True)
-
+    # sum
     l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm1, l_lstm1_back])
 
-    # Second LSTM Lasagne Layer
+    ### Second LSTM Lasagne Layer
     l_lstm2 = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, mask_input=l_mask, ingate=gate_parameters, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100.)
     l_lstm2_back = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, ingate=gate_parameters, mask_input=l_mask, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100., backwards=True)
-
     l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm2, l_lstm2_back])
 
+    # Slices the input at a specific axis and at specific indices. - (incoming feeding layer, indices, axis=-1, **kwargs)
     l_lstm_slice = lasagne.layers.SliceLayer(l_sum, 0, 1)
 
+    # A fully connected layer
     l_out = lasagne.layers.DenseLayer(l_lstm_slice, num_units=2, nonlinearity=lasagne.nonlinearities.sigmoid)
 
+    # return a triple with functions
     return l_in, l_mask, l_out
 
 
-def Train_model(BATCH_SIZE, number_of_epochs, lr):
+def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
+
+    # Create valid datasets for LSTM-Network - Separate them into train, valid and mask dataset.
+    # val_size describes Mini-Batch size
     X_train, X_val, y_train, y_val, mask_train, mask_val = Split_Data(Words, labels, val_size=0.3)
 
+    # Lstm Network configuration
     l_in, l_mask, l_out = LSTM(MAX_LENGTH=mask_train.shape[1], N_HIDDEN1=128)
 
+    # Theano tensor variables
     y_sym = T.matrix()
     mask = T.matrix()
 
+    # get outputs
     output = lasagne.layers.get_output(l_out)
+
+    # if output greather then 50 percent
     pred = (output > 0.5)
 
+    # Normalisation
     loss = T.mean(lasagne.objectives.binary_crossentropy(output, y_sym))
-
     acc = T.mean(T.eq(pred, y_sym))
 
     params = lasagne.layers.get_all_params(l_out)
     grad = T.grad(loss, params)
 
-    #''''''''' Hier müssen Optimierungen eingefügt werden. ''''
-    updates = lasagne.updates.adam(grad, params, learning_rate=lr)
+    # Choose the optimization strategie
+    updates = []
+    if(backprobOption == 'momentum'):
+        updates = lasagne.updates.momentum(grad, params, learning_rate=lr)
+    elif(backprobOption == 'adadelta'):
+        updates = lasagne.updates.adadelta(grad, params)
+    elif(backprobOption == 'rmsprop'):
+        updates = lasagne.updates.rmsprop(grad, params, learning_rate=lr)
+    else:
+        print('Error while choosing backprobOption')
 
+    # Get functions for training, validation and prediction
     f_train = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc], updates=updates)
     f_val = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc])
     f_predict = theano.function([l_in.input_var, l_mask.input_var], pred)
 
+    # Get batches for training, validation
+    # // means division without digits after the decimal point
     N_BATCHES = len(X_train) // BATCH_SIZE
     N_VAL_BATCHES = len(X_val) // BATCH_SIZE
     train_batches = batch_gen(X_train, y_train, mask_train, BATCH_SIZE)
@@ -190,20 +223,19 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr):
     global predictions
     predictions = []
 
+    lossArray = []
     print("Start training")
     for epoch in range(number_of_epochs):
-        train_loss = 0
-        train_acc = 0
+        # Stop time
         start_time = time.time()
+
+        # Training with all examples in Batches
         for _ in range(N_BATCHES):
             X, y, mask = next(train_batches)
             loss, acc = f_train(X, y, mask)
             predictions.append(f_predict(X, mask))
-            train_loss += loss
-            train_acc += acc
-        train_loss /= N_BATCHES
-        train_acc /= N_BATCHES
 
+        # Proof with validation examples
         val_loss = 0
         val_acc = 0
         for _ in range(N_VAL_BATCHES):
@@ -211,17 +243,54 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr):
             loss, acc = f_val(X, y, mask)
             val_loss += loss
             val_acc += acc
+        # Calculate total percentage of
         val_loss /= N_VAL_BATCHES
         val_acc /= N_VAL_BATCHES
-        print("Epoch {} of {} took {:.3f}s".format(
-            epoch + 1, number_of_epochs, time.time() - start_time))
-        print('  Train loss: {:.03f} - Validation Loss: {:.03f}'.format(
-            train_loss, val_loss))
-        print('  Train accuracy: {:.03f}'.format(train_acc))
-        print('  Validation accuracy: {:.03f}'.format(val_acc))
-        # np.savez('model.npz', *lasagne.layers.get_all_param_values(l_out))
+
+        # To get all missclassified examples we have to subtract the total accurancy from 1
+        lossArray.append(1 - val_acc)
+
+        # Print results per epoch
+        print("Epoch {} of {} took {:.3f}s".format(epoch + 1, number_of_epochs, time.time() - start_time))
+        print('Validation Loss: {:.03f}'.format(1 - val_acc))
+
+    return lossArray
 
 
 if __name__ == "__main__":
-    Train_model(BATCH_SIZE=32, number_of_epochs=10, lr=0.0005)
-    del Words, labels
+
+    # Variables
+    numberOfEpochs = 20
+#
+    ## Do different optimizations
+    print("Adadelta optimization")
+    adadelta_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.0005, backprobOption='adadelta')
+    #print(adadelta_loss)
+#
+    #print("Momentum optimization")
+    #momentum_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.003, backprobOption='momentum')
+    #print(momentum_loss)
+#
+    #print("RMS Propagation optimization")
+    #rmsprop_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.003, backprobOption='rmsprop')
+    #print(rmsprop_loss)
+#
+    ## evenly sampled time at 200ms intervals
+    #t = np.arange(0, numberOfEpochs, 1)
+
+    # Fake data
+    #adadelta_loss = [0.894567, 0.835567, 0.79448372, 0.642221, 0.714493930, 0.559938389]
+    #momentum_loss = [0.894567, 0.835567, 0.79448372, 0.642221, 0.714493930, 0.559938389]
+    #rmsprop_loss = [0.894567, 0.835567, 0.79448372, 0.642221, 0.714493930, 0.559938389]
+
+    t = np.arange(1., numberOfEpochs+1, 1.)
+
+    #print(t)
+
+    # red dashes, blue squares and green triangles
+    plt.plot(t, adadelta_loss, 'r--')
+    #plt.plot(t, momentum_loss, 'k--')
+    #plt.plot(t, rmsprop_loss, 'g-')
+    plt.title('LSTM Network')
+    plt.grid(True)
+    plt.show()
