@@ -21,7 +21,7 @@ import csv
 
 print("Generating Reber Grammar Words classification dataset")
 wordSize = 7
-Words, labels = make_reber_classification(3000, invalid_size=0.5, wordSize=wordSize)
+Words, labels = make_reber_classification(4000, invalid_size=0.5, wordSize=wordSize)
 X_test = make_reber_classification(500, invalid_size=0.5, wordSize=wordSize)
 
 def getAlphabetWithAllWords(arr):
@@ -156,9 +156,9 @@ def LSTM(MAX_LENGTH, N_HIDDEN1):
     l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm1, l_lstm1_back])
 
     ### Second LSTM Lasagne Layer
-    l_lstm2 = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, mask_input=l_mask, ingate=gate_parameters, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100.)
-    l_lstm2_back = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, ingate=gate_parameters, mask_input=l_mask, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100., backwards=True)
-    l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm2, l_lstm2_back])
+    #l_lstm2 = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, mask_input=l_mask, ingate=gate_parameters, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100.)
+    #l_lstm2_back = lasagne.layers.recurrent.LSTMLayer(l_sum, N_HIDDEN1, ingate=gate_parameters, mask_input=l_mask, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100., backwards=True)
+    #l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm2, l_lstm2_back])
 
     # Slices the input at a specific axis and at specific indices. - (incoming feeding layer, indices, axis=-1, **kwargs)
     l_lstm_slice = lasagne.layers.SliceLayer(l_sum, 0, 1)
@@ -203,7 +203,7 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
     elif(backprobOption == 'adadelta'):
         updates = lasagne.updates.adadelta(grad, params)
     elif(backprobOption == 'rmsprop'):
-        updates = lasagne.updates.rmsprop(grad, params, learning_rate=lr)
+        updates = lasagne.updates.rmsprop(grad, params)
     else:
         print('Error while choosing backprobOption')
 
@@ -264,15 +264,15 @@ if __name__ == "__main__":
 #
     ## Do different optimizations
     print("Adadelta optimization")
-    adadelta_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.0005, backprobOption='adadelta')
+    adadelta_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='adadelta')
     #print(adadelta_loss)
 #
-    #print("Momentum optimization")
-    #momentum_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.003, backprobOption='momentum')
+    print("Momentum optimization")
+    momentum_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='momentum')
     #print(momentum_loss)
 #
-    #print("RMS Propagation optimization")
-    #rmsprop_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.003, backprobOption='rmsprop')
+    print("RMS Propagation optimization")
+    rmsprop_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='rmsprop')
     #print(rmsprop_loss)
 #
     ## evenly sampled time at 200ms intervals
@@ -283,14 +283,17 @@ if __name__ == "__main__":
     #momentum_loss = [0.894567, 0.835567, 0.79448372, 0.642221, 0.714493930, 0.559938389]
     #rmsprop_loss = [0.894567, 0.835567, 0.79448372, 0.642221, 0.714493930, 0.559938389]
 
-    t = np.arange(1., numberOfEpochs+1, 1.)
-
-    #print(t)
-
+    #print the results
     # red dashes, blue squares and green triangles
-    plt.plot(t, adadelta_loss, 'r--')
-    #plt.plot(t, momentum_loss, 'k--')
-    #plt.plot(t, rmsprop_loss, 'g-')
-    plt.title('LSTM Network')
+    t = np.arange(1., numberOfEpochs+1, 1.)
+    plt.figure(figsize=(7, 5))
+    plt.plot(t, adadelta_loss, 'b-^')
+    plt.plot(t, momentum_loss, 'g-*')
+    plt.plot(t, rmsprop_loss, 'r-d')
+    plt.title('LSTM Network - 1 Layer - Sigmoid - 20 epochs - lr=0.001')
     plt.grid(True)
+    plt.xlabel('Epoch')
+    plt.ylabel('Training loss')
+    plt.legend(['adadelta', 'momentum', 'rmsprop'])
+    plt.savefig('training_loss.png')
     plt.show()
