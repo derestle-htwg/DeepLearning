@@ -1,3 +1,4 @@
+import random
 import time
 import numpy as np
 import theano
@@ -5,7 +6,6 @@ import theano.tensor as T
 from sklearn import cross_validation
 import lasagne
 import pandas as pd
-from neupy.datasets import make_reber_classification
 import matplotlib.pyplot as plt
 import csv
 
@@ -18,11 +18,49 @@ import csv
 #        [X_test]]
 #a.writerows(data)
 #b.close()
+chars='BTSXPVE'
+graph = [[(1,5),('T','P')] , [(1,2),('S','X')], \
+           [(3,5),('S','X')], [(6,),('E')], \
+           [(3,2),('V','P')], [(4,5),('V','T')] ]
+
+def make_reber_classification(count, invalid_size, wordSize):
+    outVals = np.ndarray((count, ),dtype=(np.str_,16))
+    labels = np.ndarray((count,))
+    while count > 0:
+        outchars = []
+        inchars = ""
+        if(random.random() < invalid_size) :
+            inchars = "B"
+            node = 0
+
+            while node != 6:
+                transitions = graph[node]
+                i = np.random.randint(0, len(transitions[0]))
+                inchars = inchars + (transitions[1][i])
+                outchars.append(transitions[1])
+                node = transitions[0][i]
+            if len(inchars) > wordSize and len(inchars) < 31:
+                outVals[count-1] = (inchars)
+                labels[count-1] = 1
+                count = count - 1
+        else:
+            for i in range(7 + random.randint(0,3)):
+                inchars = inchars + (chars[random.randint(0,len(chars)-1)])
+
+            outVals[count-1] = (inchars)
+            labels[count-1] = 0
+            count = count - 1
+    return outVals, labels
+
+
+
 
 print("Generating Reber Grammar Words classification dataset")
 wordSize = 7
 Words, labels = make_reber_classification(4000, invalid_size=0.5, wordSize=wordSize)
+
 X_test = make_reber_classification(500, invalid_size=0.5, wordSize=wordSize)
+
 
 def getAlphabetWithAllWords(arr):
 
@@ -152,7 +190,7 @@ def LSTM(MAX_LENGTH, N_HIDDEN1):
     l_lstm1 = lasagne.layers.recurrent.LSTMLayer(l_in, N_HIDDEN1, mask_input=l_mask, ingate=gate_parameters, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100.)
     # backward
     l_lstm1_back = lasagne.layers.recurrent.LSTMLayer(l_in, N_HIDDEN1, ingate=gate_parameters, mask_input=l_mask, forgetgate=gate_parameters, cell=cell_parameters, outgate=gate_parameters, learn_init=True, grad_clipping=100., backwards=True)
-    # sum
+    # sum - MSE could be calculated here
     l_sum = lasagne.layers.ElemwiseSumLayer([l_lstm1, l_lstm1_back])
 
     ### Second LSTM Lasagne Layer
@@ -233,19 +271,22 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
         for _ in range(N_BATCHES):
             X, y, mask = next(train_batches)
             loss, acc = f_train(X, y, mask)
-            predictions.append(f_predict(X, mask))
+            #predictions.append(f_predict(X, mask))
 
         # Proof with validation examples
         val_loss = 0
         val_acc = 0
+        diff = 0
         for _ in range(N_VAL_BATCHES):
             X, y, mask = next(val_batches)
             loss, acc = f_val(X, y, mask)
+            diff += np.sum(f_predict(X, y)**2)
             val_loss += loss
             val_acc += acc
         # Calculate total percentage of
         val_loss /= N_VAL_BATCHES
         val_acc /= N_VAL_BATCHES
+        diff /= N_VAL_BATCHES
 
         # To get all missclassified examples we have to subtract the total accurancy from 1
         lossArray.append(1 - val_acc)
@@ -253,6 +294,7 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
         # Print results per epoch
         print("Epoch {} of {} took {:.3f}s".format(epoch + 1, number_of_epochs, time.time() - start_time))
         print('Validation Loss: {:.03f}'.format(1 - val_acc))
+        print('MSE: {:.03f}'.format(diff))
 
     return lossArray
 
