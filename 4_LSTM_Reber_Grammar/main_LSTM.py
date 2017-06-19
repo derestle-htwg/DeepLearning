@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import random
 import time
 import numpy as np
@@ -7,7 +8,9 @@ from sklearn import cross_validation
 import lasagne
 import pandas as pd
 import matplotlib.pyplot as plt
+from threading import Thread
 import csv
+
 
 #b = open('reber_classification_examples.csv', 'w')
 #a = csv.writer(b)
@@ -57,8 +60,8 @@ def make_reber_classification(count, invalid_size, wordSize):
 
 print("Generating Reber Grammar Words classification dataset")
 wordSize = 7
-Words, labels = make_reber_classification(4000, invalid_size=0.5, wordSize=wordSize)
-
+Words, labels = make_reber_classification(16000, invalid_size=0.5, wordSize=wordSize)
+# 4000 / 500
 X_test = make_reber_classification(500, invalid_size=0.5, wordSize=wordSize)
 
 
@@ -169,7 +172,7 @@ def batch_gen(X, y, Mask, N):
         # Choose a example at random
         idx = np.random.choice(len(y), N)
         # Create the three stuctures (Input (x), label (y), )
-        yield X[idx].astype('float32'), y[idx].astype('float32'), Mask[idx].astype('float32')
+        yield X[idx].copy().astype('float32'), y[idx].copy().astype('float32'), Mask[idx].copy().astype('float32')
 
 
 def LSTM(MAX_LENGTH, N_HIDDEN1):
@@ -215,7 +218,7 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
     X_train, X_val, y_train, y_val, mask_train, mask_val = Split_Data(Words, labels, val_size=0.3)
 
     # Lstm Network configuration
-    l_in, l_mask, l_out = LSTM(MAX_LENGTH=mask_train.shape[1], N_HIDDEN1=128)
+    l_in, l_mask, l_out = LSTM(MAX_LENGTH=mask_train.shape[1], N_HIDDEN1=16)
 
     # Theano tensor variables
     y_sym = T.matrix()
@@ -245,18 +248,26 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
     else:
         print('Error while choosing backprobOption')
 
+    print('Create Train functions')
     # Get functions for training, validation and prediction
-    f_train = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc], updates=updates)
-    f_val = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc])
-    f_predict = theano.function([l_in.input_var, l_mask.input_var], pred)
+    fns = [None]*3
 
+    f_train = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc], updates=updates)
+    print('fnTrain done')
+    f_val = theano.function([l_in.input_var, y_sym, l_mask.input_var], [loss, acc])
+    print('fnVal done')
+    f_predict = theano.function([l_in.input_var, l_mask.input_var], pred)
+    f_out = theano.function([l_in.input_var, l_mask.input_var], output)
+
+
+    print('Create Batches')
     # Get batches for training, validation
     # // means division without digits after the decimal point
     N_BATCHES = len(X_train) // BATCH_SIZE
     N_VAL_BATCHES = len(X_val) // BATCH_SIZE
     train_batches = batch_gen(X_train, y_train, mask_train, BATCH_SIZE)
     val_batches = batch_gen(X_val, y_val, mask_val, BATCH_SIZE)
-
+    print("N_BATCHES",N_BATCHES,"N_VAL_BATCHES",N_VAL_BATCHES,"BATCH_SIZE",BATCH_SIZE,"len(X_train)",len(X_train),"len(X_val)",len(X_val))
     # Store learning state after each epoch into a list
     global predictions
     predictions = []
@@ -268,53 +279,95 @@ def Train_model(BATCH_SIZE, number_of_epochs, lr, backprobOption):
         start_time = time.time()
 
         # Training with all examples in Batches
-        for _ in range(N_BATCHES):
+        #print('Validate Batch')
+        for i in range(N_BATCHES):
+            #print('train Batch', i, "/", N_BATCHES)
             X, y, mask = next(train_batches)
-            loss, acc = f_train(X, y, mask)
-            #predictions.append(f_predict(X, mask))
+            f_train(X, y, mask)
 
         # Proof with validation examples
         val_loss = 0
         val_acc = 0
-        diff = 0
-        for _ in range(N_VAL_BATCHES):
+        diffIO = 0
+        diffA = 0
+        #print('Validate Batch')
+        for i in range(N_VAL_BATCHES):
+            #print('Validate Batch', i, '/', N_VAL_BATCHES)
             X, y, mask = next(val_batches)
             loss, acc = f_val(X, y, mask)
-            diff += np.sum(f_predict(X, y)**2)
+            diffIO += np.sum(abs(f_predict(X, mask) - y) ** 2)
+            diffA += np.sum(abs(f_out(X, mask) - y) ** 2)
             val_loss += loss
             val_acc += acc
+            #print("f_out",f_out(X,mask),"y",y)
+
         # Calculate total percentage of
         val_loss /= N_VAL_BATCHES
         val_acc /= N_VAL_BATCHES
-        diff /= N_VAL_BATCHES
+        diffIO /= N_VAL_BATCHES
+        diffA /= N_VAL_BATCHES
 
         # To get all missclassified examples we have to subtract the total accurancy from 1
         lossArray.append(1 - val_acc)
 
         # Print results per epoch
-        print("Epoch {} of {} took {:.3f}s".format(epoch + 1, number_of_epochs, time.time() - start_time))
-        print('Validation Loss: {:.03f}'.format(1 - val_acc))
-        print('MSE: {:.03f}'.format(diff))
+        print(backprobOption, "Epoch {} of {} took {:.3f}s, {}".format(epoch + 1, number_of_epochs, time.time() - start_time, time.ctime(int(time.time()))))
+        print(backprobOption, 'Validation Loss: {:.03f}'.format(1 - val_acc))
+        print(backprobOption, 'MSE: IO {:.03f}/A {:.03f}'.format(diffIO, diffA))
 
     return lossArray
+
+loss = [None] * 3
+
+def fn(e):
+    if e == 0:
+        d = 'adadelta'
+    elif e == 1:
+        d = 'momentum'
+    else:
+        d = 'rmsprop'
+    loss[e] = Train_model(BATCH_SIZE=32, number_of_epochs=60, lr=0.002, backprobOption=d)
+    print("done: ", d)
+    return loss[e]
+
 
 
 if __name__ == "__main__":
 
     # Variables
-    numberOfEpochs = 20
+    numberOfEpochs = 60
 #
     ## Do different optimizations
+
+
     print("Adadelta optimization")
-    adadelta_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='adadelta')
+
+
+
+
+    # print(adadelta_loss)
+
+    pool = mp.Pool(processes=3)
+    #loss = pool.map(fn, [2])  # , 1, 2])
+    loss = pool.map(fn, [0, 1, 2])
+
+    pool.close()
+    pool.join()
+
+    adadelta_loss = loss[0]
+    momentum_loss = loss[1]
+    rmsprop_loss = loss[2]
+
+    #print("Adadelta optimization")
+    #adadelta_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='adadelta')
     #print(adadelta_loss)
 #
-    print("Momentum optimization")
-    momentum_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='momentum')
+    #print("Momentum optimization")
+    #momentum_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='momentum')
     #print(momentum_loss)
 #
-    print("RMS Propagation optimization")
-    rmsprop_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='rmsprop')
+    #print("RMS Propagation optimization")
+    #rmsprop_loss = Train_model(BATCH_SIZE=32, number_of_epochs=numberOfEpochs, lr=0.001, backprobOption='rmsprop')
     #print(rmsprop_loss)
 #
     ## evenly sampled time at 200ms intervals
